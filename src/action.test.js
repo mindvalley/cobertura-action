@@ -8,6 +8,7 @@ const dummyReport = {
   total: 77.5,
   line: 77.5,
   branch: 0,
+  sources: ["."],
   files: [
     {
       name: "ClassFoo",
@@ -213,6 +214,71 @@ test("action passing pull request number directly", async () => {
     push: { ref: "master" },
   });
 });
+
+test("action only changes with sources", async () => {
+  const { action } = require("./action");
+  process.env["INPUT_PATH"] = "./src/fixtures/mv_opentelemetry.covertool.xml";
+  process.env["INPUT_SKIP_COVERED"] = "true";
+  process.env["INPUT_SHOW_BRANCH"] = "false";
+  process.env["INPUT_SHOW_LINE"] = "false";
+  process.env["INPUT_MINIMUM_COVERAGE"] = "100";
+  process.env["INPUT_SHOW_CLASS_NAMES"] = "false";
+  process.env["INPUT_SHOW_MISSING"] = "false";
+  process.env["INPUT_ONLY_CHANGED_FILES"] = "true";
+  process.env["INPUT_PULL_REQUEST_NUMBER"] = "";
+  const prNumber = 1;
+
+  apiMock
+    .intercept({
+      method: "POST",
+      path: `/repos/${owner}/${repo}/issues/${prNumber}/comments`,
+      body: ((requestBody) => {
+        const regexArray = requestBody.match(/mv_opentelemetry\/live_view.ex | `42%` |/)
+        return regexArray.length === 1
+      })
+    })
+    .reply(200);
+  apiMock
+    .intercept({
+      method: "GET",
+      path: `/repos/${owner}/${repo}/issues/${prNumber}/comments`,
+    })
+    .reply(200, [{ body: "some body", id: 123 }], {
+      headers: { "content-type": "application/json" },
+    });
+  apiMock
+    .intercept({
+      method: "GET",
+      path: `/repos/${owner}/${repo}/pulls/${prNumber}/files`,
+    })
+    .reply(200, [{ filename: "lib/mv_opentelemetry/live_view.ex" }], {
+      headers: { "content-type": "application/json" },
+    });
+  apiMock
+    .intercept({ method: "POST", path: `/repos/${owner}/${repo}/check-runs` })
+    .reply(200);
+
+  await action({
+    pull_request: { number: prNumber, head: { sha: "deadbeef" } },
+  });
+  await action();
+});
+
+test("filterFile", async () => {
+  const { filterFile } = require("./action");
+  const file = {
+    total: 64.3,
+    line: 64.3,
+    branch: 0,
+    filename: 'mv_opentelemetry/oban.ex',
+    name: 'Elixir.MvOpentelemetry.Oban',
+    missing: [['31', '31'], ['70', '75']]
+  };
+  const changedFiles = ['lib/mv_opentelemetry/oban.ex'];
+  const sources = ['/home/user/mv-opentelemetry/src', '/home/user/mv-opentelemetry/lib'];
+  const result = filterFile(file, changedFiles, sources)
+  expect(result).toEqual(true)
+})
 
 test("action only changes", async () => {
   const { action } = require("./action");
