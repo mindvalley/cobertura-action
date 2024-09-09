@@ -39246,7 +39246,6 @@ function getSources(sources) {
   if (sources.source === "") {
     return []
   } else {
-    console.log(sources.source)
     return sources.source
   }
 }
