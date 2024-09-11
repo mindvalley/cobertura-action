@@ -2,6 +2,7 @@ const core = require("@actions/core");
 const github = require("@actions/github");
 const { escapeMarkdown } = require("./utils");
 const { processCoverage } = require("./cobertura");
+const path = require("path");
 
 const client = new github.getOctokit(
   core.getInput("repo_token", { required: true }),
@@ -149,6 +150,29 @@ function formatMissingLines(
   return joined || " ";
 }
 
+function filterFile(file, changedFiles, sources) {
+  if (changedFiles === null) {
+    return true
+  }
+
+  const fullPaths = sources.map((source) => {
+    let joinedPath = path.join(source, file.filename)
+    return path.normalize(joinedPath)
+  })
+
+  const matchingPaths = [];
+
+  fullPaths.forEach((fullPath) => {
+    changedFiles.forEach((changedFile) => {
+      // file will always be at the end.
+      const regex = new RegExp(changedFile.concat("$"))
+      if (fullPath.match(regex)) { matchingPaths.push(fullPath) }
+    })
+  });
+
+  if (matchingPaths.length >= 1) { return true } else { return false }
+}
+
 function markdownReport(reports, commit, options) {
   const {
     minimumCoverage = 100,
@@ -169,9 +193,9 @@ function markdownReport(reports, commit, options) {
   let output = "";
   for (const report of reports) {
     const folder = reports.length <= 1 ? "" : ` ${report.folder}`;
-    for (const file of report.files.filter(
-      (file) => filteredFiles == null || filteredFiles.includes(file.filename),
-    )) {
+    const changedFiles = report.files.filter((file) => filterFile(file, filteredFiles, report.sources));
+
+    for (const file of changedFiles) {
       const fileTotal = Math.floor(file.total);
       const fileLines = Math.floor(file.line);
       const fileBranch = Math.floor(file.branch);
@@ -183,11 +207,11 @@ function markdownReport(reports, commit, options) {
         status(fileTotal),
         showMissing && file.missing
           ? formatMissingLines(
-              formatFileUrl(linkMissingLinesSourceDir, file.filename, commit),
-              file.missing,
-              showMissingMaxLength,
-              linkMissingLines,
-            )
+            formatFileUrl(linkMissingLinesSourceDir, file.filename, commit),
+            file.missing,
+            showMissingMaxLength,
+            linkMissingLines,
+          )
           : undefined,
       ]);
     }
@@ -336,4 +360,5 @@ module.exports = {
   addComment,
   addCheck,
   listChangedFiles,
+  filterFile,
 };

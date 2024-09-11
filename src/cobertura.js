@@ -4,6 +4,14 @@ const util = require("util");
 const glob = require("glob-promise");
 const parseString = util.promisify(xml2js.parseString);
 
+function getSources(sources) {
+  if (sources.source === "") {
+    return []
+  } else {
+    return sources.source
+  }
+}
+
 /**
  * generate the report for the given file
  *
@@ -18,6 +26,7 @@ async function readCoverageFromFile(path, options) {
     mergeAttrs: true,
   });
   const { packages } = coverage;
+  const sources = getSources(coverage.sources)
   const classes = processPackages(packages);
   const files = classes
     .filter(Boolean)
@@ -33,6 +42,7 @@ async function readCoverageFromFile(path, options) {
   return {
     ...calculateRates(coverage),
     files,
+    sources
   };
 }
 

@@ -38869,6 +38869,7 @@ const core = __nccwpck_require__(2186);
 const github = __nccwpck_require__(5438);
 const { escapeMarkdown } = __nccwpck_require__(1608);
 const { processCoverage } = __nccwpck_require__(4129);
+const path = __nccwpck_require__(1017);
 
 const client = new github.getOctokit(
   core.getInput("repo_token", { required: true }),
@@ -39016,6 +39017,29 @@ function formatMissingLines(
   return joined || " ";
 }
 
+function filterFile(file, changedFiles, sources) {
+  if (changedFiles === null) {
+    return true
+  }
+
+  const fullPaths = sources.map((source) => {
+    let joinedPath = path.join(source, file.filename)
+    return path.normalize(joinedPath)
+  })
+
+  const matchingPaths = [];
+
+  fullPaths.forEach((fullPath) => {
+    changedFiles.forEach((changedFile) => {
+      // file will always be at the end.
+      const regex = new RegExp(changedFile.concat("$"))
+      if (fullPath.match(regex)) { matchingPaths.push(fullPath) }
+    })
+  });
+
+  if (matchingPaths.length >= 1) { return true } else { return false }
+}
+
 function markdownReport(reports, commit, options) {
   const {
     minimumCoverage = 100,
@@ -39036,9 +39060,9 @@ function markdownReport(reports, commit, options) {
   let output = "";
   for (const report of reports) {
     const folder = reports.length <= 1 ? "" : ` ${report.folder}`;
-    for (const file of report.files.filter(
-      (file) => filteredFiles == null || filteredFiles.includes(file.filename),
-    )) {
+    const changedFiles = report.files.filter((file) => filterFile(file, filteredFiles, report.sources));
+
+    for (const file of changedFiles) {
       const fileTotal = Math.floor(file.total);
       const fileLines = Math.floor(file.line);
       const fileBranch = Math.floor(file.branch);
@@ -39050,11 +39074,11 @@ function markdownReport(reports, commit, options) {
         status(fileTotal),
         showMissing && file.missing
           ? formatMissingLines(
-              formatFileUrl(linkMissingLinesSourceDir, file.filename, commit),
-              file.missing,
-              showMissingMaxLength,
-              linkMissingLines,
-            )
+            formatFileUrl(linkMissingLinesSourceDir, file.filename, commit),
+            file.missing,
+            showMissingMaxLength,
+            linkMissingLines,
+          )
           : undefined,
       ]);
     }
@@ -39203,6 +39227,7 @@ module.exports = {
   addComment,
   addCheck,
   listChangedFiles,
+  filterFile,
 };
 
 
@@ -39216,6 +39241,14 @@ const xml2js = __nccwpck_require__(6189);
 const util = __nccwpck_require__(3837);
 const glob = __nccwpck_require__(8252);
 const parseString = util.promisify(xml2js.parseString);
+
+function getSources(sources) {
+  if (sources.source === "") {
+    return []
+  } else {
+    return sources.source
+  }
+}
 
 /**
  * generate the report for the given file
@@ -39231,6 +39264,7 @@ async function readCoverageFromFile(path, options) {
     mergeAttrs: true,
   });
   const { packages } = coverage;
+  const sources = getSources(coverage.sources)
   const classes = processPackages(packages);
   const files = classes
     .filter(Boolean)
@@ -39246,6 +39280,7 @@ async function readCoverageFromFile(path, options) {
   return {
     ...calculateRates(coverage),
     files,
+    sources
   };
 }
 
