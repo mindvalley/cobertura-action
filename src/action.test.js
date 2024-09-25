@@ -280,6 +280,22 @@ test("filterFile", async () => {
   expect(result).toEqual(true)
 })
 
+test("filterFile with 1 source", async () => {
+  const { filterFile } = require("./action");
+  const file = {
+    total: 64.3,
+    line: 64.3,
+    branch: 0,
+    filename: 'mv_opentelemetry/oban.ex',
+    name: 'Elixir.MvOpentelemetry.Oban',
+    missing: [['31', '31'], ['70', '75']]
+  };
+  const changedFiles = ['lib/mv_opentelemetry/oban.ex'];
+  const sources = '/home/user/mv-opentelemetry/lib';
+  const result = filterFile(file, changedFiles, sources)
+  expect(result).toEqual(true)
+})
+
 test("action only changes", async () => {
   const { action } = require("./action");
   process.env["INPUT_PATH"] = "./src/fixtures/test-branch.xml";

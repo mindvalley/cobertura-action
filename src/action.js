@@ -155,6 +155,9 @@ function filterFile(file, changedFiles, sources) {
     return true
   }
 
+  // In case the sources is not an array, but a single item.
+  sources = [sources].flat()
+
   const fullPaths = sources.map((source) => {
     let joinedPath = path.join(source, file.filename)
     return path.normalize(joinedPath)
